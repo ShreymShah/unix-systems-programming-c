@@ -5,16 +5,10 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-char* int_to_string(int num){
-	int length = snprintf(NULL,0,"%d",num);
-	char* str = malloc(length+1);
-
-	snprintf(str,length+1,"%d",num);
-	return str;
-}
-
 void ls(int curr_dir){
-	FILE *f = fopen(int_to_string(curr_dir),"r");
+	char str[32] = {0};
+	snprintf(str,32,"%d",curr_dir);
+	FILE *f = fopen(str,"r");
 	char name[32] = {0};
 	int inode_num;
 
@@ -25,7 +19,9 @@ void ls(int curr_dir){
 }
 
 int cd(int curr_dir,char dir_name[], char inode_list[]){
-	FILE *f = fopen(int_to_string(curr_dir),"r");
+	char str[32] = {0};
+	snprintf(str,32,"%d",curr_dir);
+	FILE *f = fopen(str,"r");
 	char name[32] = {0};
 	int inode_num;
 
@@ -42,7 +38,9 @@ int cd(int curr_dir,char dir_name[], char inode_list[]){
 }
 
 void mkdir_shrey(int prev_dir,char new_dir_name[],int *max_inode,char inode_list[]){
-	FILE *f = fopen(int_to_string(prev_dir),"r");
+	char str[32] = {0};
+	snprintf(str,32,"%d",prev_dir);
+	FILE *f = fopen(str,"r");
 	int inode_num;
 	char name[32] = {0};
 	while((fread(&inode_num,sizeof(int),1,f))!=0){
@@ -57,7 +55,9 @@ void mkdir_shrey(int prev_dir,char new_dir_name[],int *max_inode,char inode_list
 	//creating and writing into the new dir_file
 	char curr_dir_name_dot[32] =".";
 	char prev_dir_name_dot[32] ="..";
-	f = fopen(int_to_string(*max_inode),"w");
+	char str_2[32] = {0};
+	snprintf(str_2,32,"%d",(*max_inode));
+	f = fopen(str_2,"w");
 	fwrite(max_inode,sizeof(int),1,f);
 	fwrite(curr_dir_name_dot,sizeof(char),32,f);
 	fwrite(&prev_dir,sizeof(int),1,f);
@@ -75,7 +75,9 @@ void mkdir_shrey(int prev_dir,char new_dir_name[],int *max_inode,char inode_list
 	inode_list[*max_inode] = d;
 	
 	//making changes to prev_dir
-	f = fopen(int_to_string(prev_dir),"a");
+	char str_3[32] = {0};
+	snprintf(str_3,32,"%d",prev_dir);
+	f = fopen(str_3,"a");
 	fwrite(max_inode,sizeof(int),1,f);
 	fwrite(new_dir_name,sizeof(char),32,f);
 	fclose(f);
@@ -84,7 +86,9 @@ void mkdir_shrey(int prev_dir,char new_dir_name[],int *max_inode,char inode_list
 
 
 void touch(int prev_dir,char new_file_name[],int *max_inode,char inode_list[]){
-	FILE *f = fopen(int_to_string(prev_dir),"r");
+	char str[32] = {0};
+	snprintf(str,32,"%d",prev_dir);
+	FILE *f = fopen(str,"r");
 	int inode_num;
 	char name[32] = {0};
 	
@@ -98,7 +102,9 @@ void touch(int prev_dir,char new_file_name[],int *max_inode,char inode_list[]){
 	(*max_inode)++;
 
 	//creating and writing into new file
-	f = fopen(int_to_string(*max_inode),"w");
+	char str_2[32] = {0};
+	snprintf(str_2,32,"%d",*max_inode);
+	f = fopen(str_2,"w");
 	fwrite(max_inode,sizeof(int),1,f);
 	fwrite(new_file_name,sizeof(char),32,f);
 	fclose(f);
@@ -114,7 +120,9 @@ void touch(int prev_dir,char new_file_name[],int *max_inode,char inode_list[]){
 	inode_list[*max_inode] = d;
 
 	//making changes to parent_dir
-	f = fopen(int_to_string(prev_dir),"a");
+	char str_3[32] = {0};
+	snprintf(str_3,32,"%d",prev_dir);
+	f = fopen(str_3,"a");
 	fwrite(max_inode,sizeof(int),1,f);
 	fwrite(new_file_name,sizeof(char),32,f);
 	fclose(f);
