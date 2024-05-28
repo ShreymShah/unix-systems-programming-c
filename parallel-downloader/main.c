@@ -20,6 +20,28 @@ void curl_shrey(char *name, char *url, int max_seconds){
 
 }
 
+void print_exit(int status, int line_number_arr[], pid_t id){
+    int i=0;
+    int line_exited;
+    while(i<20){
+        if(line_number_arr[i] == id){
+            line_exited = i+1; 
+            break; 
+        }
+            i++;
+    }
+
+        if(WIFEXITED(status)){
+            int exit_status = WEXITSTATUS(status);
+            if(exit_status==0){
+                printf("process %d processing line %d exited normally\n",id,line_exited);
+            }
+            else{
+                printf("process %d processing line %d terminated with exit status: %d\n",id,line_exited,exit_status);
+            }
+        }    
+}
+
 int main(int argc, char *argv[]){
     if(argc<3){
         printf("Invalid number of arguments passed\n");
@@ -42,23 +64,7 @@ int main(int argc, char *argv[]){
         if(num_childs>=max_childs){
             int status;
             pid_t id = waitpid(-1, &status, 0);
-            int i=0;
-            while(i<20){
-                if(line_number_arr[i] == id){
-                    line_exited = i+1;  
-                }
-                i++;
-            }
-
-            if(WIFEXITED(status)){
-                int exit_status = WEXITSTATUS(status);
-                if(exit_status==0){
-                    printf("process %d processing line %d exited normally\n",id,line_exited);
-                }
-                else{
-                    printf("process %d processing line %d terminated with exit status: %d\n",id,line_exited,exit_status);
-                }
-        }
+            print_exit(status,line_number_arr,id);
             total_downloads_printed++;
             num_childs--;
         }
@@ -117,23 +123,7 @@ int main(int argc, char *argv[]){
     while(j<=(total_downloads-total_downloads_printed)){
             int status;
             pid_t id = waitpid(-1, &status, 0);
-            int i=0;
-            while(i<20){
-                if(line_number_arr[i] == id){
-                    line_exited = i+1;  
-                }
-                i++;
-            }
-
-            if(WIFEXITED(status)){
-            int exit_status = WEXITSTATUS(status);
-            if(exit_status==0){
-                printf("process %d processing line %d exited normally\n",id,line_exited);
-            }
-            else{
-                printf("process %d processing line %d terminated with exit status: %d\n",id,line_exited,exit_status);
-            }
-        }
+            print_exit(status,line_number_arr,id);
         j++;
     }
 
