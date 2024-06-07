@@ -103,6 +103,7 @@ void *handle_client_request(void *param) {
         printf("filename: %s line 102\n",filename);
         send_msg(client_socket,filename,is_get);
         free(filename);
+        free(delay_slice);
     }
 
     return NULL;
