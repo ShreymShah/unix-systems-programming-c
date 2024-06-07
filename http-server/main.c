@@ -43,7 +43,6 @@ void send_msg(int client_socket, char *filename, char is_get){
     int size = st.st_size;
     snprintf(msg,1052, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: %d\r\n\r\n",size);
     send(client_socket,msg,strlen(msg),0);
-    printf("line51\n%s\n",msg);
     if(is_get == 'y'){
         char c[2];
         c[1] = '\0';
@@ -63,7 +62,7 @@ void *handle_client_request(void *param) {
     char filename[1052] = {0};
     char head_get[5] = {0};
     char delay_filename1[15] = {0};
-    char delay_filename2[15] = {0};
+    char http[15] = {0};
     int delay = 0;
     memset(buf, 0, MAXLEN+1);
     ssize_t bytes_read = recv(client_socket, buf, sizeof(buf), 0);
@@ -74,7 +73,13 @@ void *handle_client_request(void *param) {
     }
 
     buf[bytes_read-2] = '\0';
-    sscanf(buf, "%s %s %s",head_get, delay_filename1, delay_filename2);
+    sscanf(buf, "%s %s %s",head_get, delay_filename1, http);
+
+    if(strcmp(http, "HTTP/1.1") !=0 ){
+        send_error(client_socket,"400 Bad Request");
+        close(client_socket);
+        return NULL;
+    }
 
     if(strcmp(head_get,"GET") == 0){
         is_get = 'y';
@@ -84,6 +89,7 @@ void *handle_client_request(void *param) {
     }
     else{
         send_error(client_socket,"501 Not Implemented");
+        close(client_socket);
         return NULL;
     }
     char delay_slice[10] = {0};
@@ -93,14 +99,14 @@ void *handle_client_request(void *param) {
         sleep(delay);
         char *resp = "HTTP/1.1 200 OK \r\n\r\n";
         send(client_socket,resp,strlen(resp),0);
+        close(client_socket);
         return NULL;
     }
     else{ 
         slice(delay_filename1,1,strlen(delay_filename1),filename);
-        printf("filename: %s line 102\n",filename);
         send_msg(client_socket,filename,is_get);
     }
-
+    close(client_socket);
     return NULL;
 
 }
@@ -126,7 +132,7 @@ int main(int argc, char *argv[]){
     sa.sin_port = htons(port);
     sa.sin_addr.s_addr = htonl(INADDR_ANY);
     connect(sock, (struct sockaddr *) &sa, sizeof(sa));
-
+    printf("Connected to socket %d\n",sock);
     int b = bind(sock, (struct sockaddr*)&sa, sizeof(sa));
 
     if(b<0){
@@ -148,7 +154,13 @@ int main(int argc, char *argv[]){
         printf("client_socket: %d (%s:%d)\n", client_sock, client_addr, ntohs(sa.sin_port));
 
         pthread_t client_thread;
-        pthread_create(&client_thread, NULL, handle_client_request, &client_sock);
-        pthread_detach(client_thread);
+        int check = pthread_create(&client_thread, NULL, handle_client_request, &client_sock);
+        if(check!=0){
+            send_error(client_sock,"500 Internal Error");
+            close(client_sock);
+        }
+        else{
+            pthread_detach(client_thread);
+        }
     }
 }
