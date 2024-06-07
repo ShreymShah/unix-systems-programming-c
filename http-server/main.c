@@ -69,6 +69,7 @@ void *handle_client_request(void *param) {
     if (bytes_read <= 0) {
         printf("Error reading client request\n");
         close(client_socket);
+        free((int *)param);
         return NULL;
     }
 
@@ -78,6 +79,7 @@ void *handle_client_request(void *param) {
     if(strcmp(http, "HTTP/1.1") !=0 ){
         send_error(client_socket,"400 Bad Request");
         close(client_socket);
+        free((int *)param);
         return NULL;
     }
 
@@ -90,6 +92,7 @@ void *handle_client_request(void *param) {
     else{
         send_error(client_socket,"501 Not Implemented");
         close(client_socket);
+        free((int *)param);
         return NULL;
     }
     char delay_slice[10] = {0};
@@ -100,6 +103,7 @@ void *handle_client_request(void *param) {
         char *resp = "HTTP/1.1 200 OK \r\n\r\n";
         send(client_socket,resp,strlen(resp),0);
         close(client_socket);
+        free((int *)param);
         return NULL;
     }
     else{ 
@@ -107,6 +111,7 @@ void *handle_client_request(void *param) {
         send_msg(client_socket,filename,is_get);
     }
     close(client_socket);
+    free((int *)param);
     return NULL;
 
 }
@@ -154,7 +159,9 @@ int main(int argc, char *argv[]){
         printf("client_socket: %d (%s:%d)\n", client_sock, client_addr, ntohs(sa.sin_port));
 
         pthread_t client_thread;
-        int check = pthread_create(&client_thread, NULL, handle_client_request, &client_sock);
+        int *p = (int *) malloc(sizeof(int));
+        *p = client_sock;
+        int check = pthread_create(&client_thread, NULL, handle_client_request, p);
         if(check!=0){
             send_error(client_sock,"500 Internal Error");
             close(client_sock);
