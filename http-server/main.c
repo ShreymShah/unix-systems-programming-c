@@ -14,18 +14,15 @@
 
 #define MAXLEN 1000
 
-char* slice(const char* str, int start, int end) {
+void slice(const char* str, int start, int end, char* return_str) {
     int length = end - start;
-
-    char *result = (char *)malloc(length+1);
     int i;
     for (i = 0; i < length; i++) {
-        result[i] = str[start + i];
+        return_str[i] = str[start + i];
     }
 
-    result[length] = '\0';
+    return_str[length] = '\0';
 
-    return result;
 }
 
 void send_error(int client_sock, char* msg){
@@ -63,7 +60,7 @@ void *handle_client_request(void *param) {
     int client_socket = *((int *) param);
     char buf[MAXLEN+1];
     char is_get='n';
-    char *filename;
+    char filename[1052] = {0};
     char head_get[5] = {0};
     char delay_filename1[15] = {0};
     char delay_filename2[15] = {0};
@@ -89,21 +86,19 @@ void *handle_client_request(void *param) {
         send_error(client_socket,"501 Not Implemented");
         return NULL;
     }
-    char *delay_slice = slice(delay_filename1,0,7);
+    char delay_slice[7] = {0};
+    slice(delay_filename1,0,7,delay_slice);
     if(strcmp(delay_slice,"/delay/") == 0){
         delay = atoi(delay_filename1+7);
         sleep(delay);
         char *resp = "HTTP/1.1 200 OK \r\n\r\n";
         send(client_socket,resp,strlen(resp),0);
-        free(delay_slice);
         return NULL;
     }
-    else{
-        filename = slice(delay_filename1,1,strlen(delay_filename1));
+    else{ 
+        slice(delay_filename1,1,strlen(delay_filename1),filename);
         printf("filename: %s line 102\n",filename);
         send_msg(client_socket,filename,is_get);
-        free(filename);
-        free(delay_slice);
     }
 
     return NULL;
