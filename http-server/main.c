@@ -86,7 +86,7 @@ void *handle_client_request(void *param) {
         send_error(client_socket,"501 Not Implemented");
         return NULL;
     }
-    char delay_slice[7] = {0};
+    char delay_slice[8] = {0};
     slice(delay_filename1,0,7,delay_slice);
     if(strcmp(delay_slice,"/delay/") == 0){
         delay = atoi(delay_filename1+7);
