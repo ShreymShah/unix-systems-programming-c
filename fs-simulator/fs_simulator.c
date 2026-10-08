@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -5,230 +7,255 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#define MAX_INODES 1024
+#define NAME_LEN 32
+
+/* Opens the file that stores the given inode. */
+FILE *open_inode(int inode, const char *mode){
+    char str[32] = {0};
+    snprintf(str, sizeof(str), "%d", inode);
+    FILE *f = fopen(str, mode);
+    if(f == NULL){
+        perror(str);
+    }
+    return f;
+}
+
+/* Reads the next directory entry. Returns 1 on success, 0 at end of directory. */
+int read_entry(FILE *f, int *inode_num, char name[NAME_LEN]){
+    if(fread(inode_num, sizeof(int), 1, f) != 1){
+        return 0;
+    }
+    if(fread(name, sizeof(char), NAME_LEN, f) != NAME_LEN){
+        return 0;
+    }
+    name[NAME_LEN - 1] = '\0';
+    return 1;
+}
+
+void write_entry(FILE *f, int inode_num, const char *name){
+    char padded[NAME_LEN] = {0};
+    strncpy(padded, name, NAME_LEN - 1);
+    fwrite(&inode_num, sizeof(int), 1, f);
+    fwrite(padded, sizeof(char), NAME_LEN, f);
+}
+
+/* Returns 1 if the directory already has an entry with this name. */
+int name_exists(int dir, const char *name){
+    FILE *f = open_inode(dir, "rb");
+    if(f == NULL){
+        return 0;
+    }
+    int inode_num;
+    char entry_name[NAME_LEN];
+    int found = 0;
+    while(read_entry(f, &inode_num, entry_name)){
+        if(strcmp(entry_name, name) == 0){
+            found = 1;
+            break;
+        }
+    }
+    fclose(f);
+    return found;
+}
+
 void ls(int curr_dir){
-	char str[32] = {0};
-	snprintf(str,32,"%d",curr_dir);
-	FILE *f = fopen(str,"r");
-	char name[32] = {0};
-	int inode_num;
-
-	while((fread(&inode_num,sizeof(int),1,f))!=0){
-		fread(name,sizeof(char),32,f);
-		printf("%d %s\n",inode_num,name);
-}	
+    FILE *f = open_inode(curr_dir, "rb");
+    if(f == NULL){
+        return;
+    }
+    int inode_num;
+    char name[NAME_LEN];
+    while(read_entry(f, &inode_num, name)){
+        printf("%d %s\n", inode_num, name);
+    }
+    fclose(f);
 }
 
-int cd(int curr_dir,char dir_name[], char inode_list[]){
-	char str[32] = {0};
-	snprintf(str,32,"%d",curr_dir);
-	FILE *f = fopen(str,"r");
-	char name[32] = {0};
-	int inode_num;
-
-	while((fread(&inode_num,sizeof(int),1,f))!=0){
-		fread(name,sizeof(name),1,f);
-		if(strcmp(name,dir_name) == 0 && inode_list[inode_num]=='d'){
-			curr_dir = inode_num;
-			return inode_num;
-	}		
+int cd(int curr_dir, const char *dir_name, const char inode_list[]){
+    FILE *f = open_inode(curr_dir, "rb");
+    if(f == NULL){
+        return curr_dir;
+    }
+    int inode_num;
+    char name[NAME_LEN];
+    while(read_entry(f, &inode_num, name)){
+        if(strcmp(name, dir_name) == 0 && inode_num >= 0 && inode_num < MAX_INODES
+           && inode_list[inode_num] == 'd'){
+            fclose(f);
+            return inode_num;
+        }
+    }
+    fclose(f);
+    printf("Directory %s not found\n", dir_name);
+    return curr_dir;
 }
 
-	printf("Directory %s not found\n",dir_name);
-	return curr_dir;
+/* Records a new inode in inodes_list, in memory and on disk. */
+void add_inode(int inode, char type, char inode_list[]){
+    FILE *f = fopen("inodes_list", "ab");
+    if(f == NULL){
+        perror("inodes_list");
+        return;
+    }
+    fwrite(&inode, sizeof(int), 1, f);
+    fwrite(&type, sizeof(char), 1, f);
+    fclose(f);
+    inode_list[inode] = type;
 }
 
-void mkdir_shrey(int prev_dir,char new_dir_name[],int *max_inode,char inode_list[]){
-	char str[32] = {0};
-	snprintf(str,32,"%d",prev_dir);
-	FILE *f = fopen(str,"r");
-	int inode_num;
-	char name[32] = {0};
-	while((fread(&inode_num,sizeof(int),1,f))!=0){
-		fread(name,sizeof(char),32,f);
-		if(strcmp(name,new_dir_name)==0){
-			printf("Directory %s already present, please choose another name\n",new_dir_name);
-			return;
-		}
-
-	}
-	(*max_inode)++;
-	//creating and writing into the new dir_file
-	char curr_dir_name_dot[32] =".";
-	char prev_dir_name_dot[32] ="..";
-	char str_2[32] = {0};
-	snprintf(str_2,32,"%d",(*max_inode));
-	f = fopen(str_2,"w");
-	fwrite(max_inode,sizeof(int),1,f);
-	fwrite(curr_dir_name_dot,sizeof(char),32,f);
-	fwrite(&prev_dir,sizeof(int),1,f);
-	fwrite(prev_dir_name_dot,sizeof(char),32,f);
-	fclose(f);
-
-	//making changes into indodes_list file
-	f = fopen("inodes_list","a");
-	fwrite(max_inode,sizeof(int),1,f);
-	char d='d';
-	fwrite(&d,sizeof(char),1,f);
-	fclose(f);
-
-	//making changes to inode_list
-	inode_list[*max_inode] = d;
-	
-	//making changes to prev_dir
-	char str_3[32] = {0};
-	snprintf(str_3,32,"%d",prev_dir);
-	f = fopen(str_3,"a");
-	fwrite(max_inode,sizeof(int),1,f);
-	fwrite(new_dir_name,sizeof(char),32,f);
-	fclose(f);
-	return;	
+/* Adds a name -> inode entry to the parent directory. */
+void add_to_dir(int dir, int inode, const char *name){
+    FILE *f = open_inode(dir, "ab");
+    if(f == NULL){
+        return;
+    }
+    write_entry(f, inode, name);
+    fclose(f);
 }
 
+void make_dir(int prev_dir, const char *new_dir_name, int *max_inode, char inode_list[]){
+    if(name_exists(prev_dir, new_dir_name)){
+        printf("Directory %s already present, please choose another name\n", new_dir_name);
+        return;
+    }
+    int new_inode = *max_inode + 1;
 
-void touch(int prev_dir,char new_file_name[],int *max_inode,char inode_list[]){
-	char str[32] = {0};
-	snprintf(str,32,"%d",prev_dir);
-	FILE *f = fopen(str,"r");
-	int inode_num;
-	char name[32] = {0};
-	
-	while((fread(&inode_num,sizeof(int),1,f)) != 0){
-		fread(name,sizeof(char),32,f);
-		if(strcmp(name,new_file_name) == 0){
-			printf("File name '%s' already exists.\n",new_file_name);
-			return;
-		}
-	}
-	(*max_inode)++;
+    /* A new directory starts with "." and ".." entries. */
+    FILE *f = open_inode(new_inode, "wb");
+    if(f == NULL){
+        return;
+    }
+    write_entry(f, new_inode, ".");
+    write_entry(f, prev_dir, "..");
+    fclose(f);
 
-	//creating and writing into new file
-	char str_2[32] = {0};
-	snprintf(str_2,32,"%d",*max_inode);
-	f = fopen(str_2,"w");
-	fwrite(max_inode,sizeof(int),1,f);
-	fwrite(new_file_name,sizeof(char),32,f);
-	fclose(f);
+    add_inode(new_inode, 'd', inode_list);
+    add_to_dir(prev_dir, new_inode, new_dir_name);
+    *max_inode = new_inode;
+}
 
-	//editing inodes_list file
-	f = fopen("inodes_list","a");
-	fwrite(max_inode,sizeof(int),1,f);
-	char d = 'f';
-	fwrite(&d,sizeof(char),1,f);
-	fclose(f);
+void touch(int prev_dir, const char *new_file_name, int *max_inode, char inode_list[]){
+    if(name_exists(prev_dir, new_file_name)){
+        printf("File name '%s' already exists.\n", new_file_name);
+        return;
+    }
+    int new_inode = *max_inode + 1;
 
-	//making changes to inodes_list
-	inode_list[*max_inode] = d;
+    FILE *f = open_inode(new_inode, "wb");
+    if(f == NULL){
+        return;
+    }
+    write_entry(f, new_inode, new_file_name);
+    fclose(f);
 
-	//making changes to parent_dir
-	char str_3[32] = {0};
-	snprintf(str_3,32,"%d",prev_dir);
-	f = fopen(str_3,"a");
-	fwrite(max_inode,sizeof(int),1,f);
-	fwrite(new_file_name,sizeof(char),32,f);
-	fclose(f);
-		
+    add_inode(new_inode, 'f', inode_list);
+    add_to_dir(prev_dir, new_inode, new_file_name);
+    *max_inode = new_inode;
+}
+
+/* Loads inodes_list into memory. Returns the highest inode number, or -1 on error. */
+int load_inodes(char inode_list[]){
+    FILE *file = fopen("inodes_list", "rb");
+    if(file == NULL){
+        perror("inodes_list");
+        return -1;
+    }
+    int max_inode = 0;
+    int i;
+    char type;
+    while(fread(&i, sizeof(int), 1, file) == 1 && fread(&type, sizeof(char), 1, file) == 1){
+        if(i < 0 || i >= MAX_INODES){
+            fprintf(stderr, "Skipping invalid inode number %d in inodes_list\n", i);
+            continue;
+        }
+        inode_list[i] = type;
+        if(i > max_inode){
+            max_inode = i;
+        }
+    }
+    fclose(file);
+    return max_inode;
 }
 
 int main(int argc, char *argv[]){
-	FILE *file;
-	int i;
-	int check;
-	char inode_list[1024] = {0};
-	int max_inode = 0;
-	
-	if(argc<2){
-		printf("Please provide a directory name");
-		return 0;
+    char inode_list[MAX_INODES] = {0};
 
-	}
+    if(argc < 2){
+        fprintf(stderr, "Usage: %s <directory>\n", argv[0]);
+        return 1;
+    }
+    if(chdir(argv[1]) != 0){
+        perror(argv[1]);
+        return 1;
+    }
+    int max_inode = load_inodes(inode_list);
+    if(max_inode < 0){
+        return 1;
+    }
+    int curr_dir = 0;
 
-	chdir(argv[1]);
-	file = fopen("inodes_list","r");
-	check = fread(&i,sizeof(int),1,file);
-	while(check!=0)
-	{
-		fread(&(inode_list[i]),sizeof(char),1,file);
-		max_inode=i;
-		check = fread(&i,sizeof(int),1,file);
-		
-	}
-	int curr_dir = 0;
+    char command[256];
+    while(1){
+        printf("> ");
+        fflush(stdout);
+        if(fgets(command, sizeof(command), stdin) == NULL){
+            printf("\n");
+            break;
+        }
+        if(strchr(command, '\n') == NULL && !feof(stdin)){
+            /* Discard the rest of an over-long line. */
+            int c;
+            while((c = getchar()) != '\n' && c != EOF){
+            }
+            printf("Command too long\n");
+            continue;
+        }
 
-	while(1){
-		char command_name[32];
-		printf("> ");
-		fgets(command_name,32,stdin);	
-		int count = 1;
-		int i,j;
-		char first[32]={0};
-		char second[32]={0};
-		int len = strlen(command_name);
+        char first[256] = {0};
+        char second[256] = {0};
+        char extra[256] = {0};
+        int count = sscanf(command, "%255s %255s %255s", first, second, extra);
 
-		for(i=0;i<len;i++){
-			if(command_name[i]==' '){
-				first[i]='\0';
-				break;
-}
-			if(command_name[i] != '\n'){
-			first[i] = command_name[i];}
+        if(count <= 0){
+            continue;
+        }
+        if(count > 2){
+            printf("Command invalid\n");
+            continue;
+        }
 
-}
-		i++;
-		for(j=0;i<len;i++,j++){
-			if(command_name[i] == ' '){
-				count = 2;
-}
-
-			else if(command_name[i] == '\0' || command_name[i] == '\n'){
-				break;
-			
-}
-	
-			second[j] = command_name[i];
-}
-			second[j] = '\0';
-
-
-		if(count>2){
-			printf("Command invalid\n");
-			continue;
-		}	
-
-
-		if(strcmp(first,"ls")==0){
-			ls(curr_dir);}
-
-		else if(strcmp(first,"exit")==0){
-			break;}
-
-		else if(strcmp(first,"cd")==0){
-			curr_dir = cd(curr_dir,second,inode_list);
-		}
-
-		else if(strcmp(first,"mkdir")==0){
-
-			if(max_inode>=1023){
-				printf("Maximum number of inodes reached!\n");
-				continue;
-			}
-			mkdir_shrey(curr_dir,second,&max_inode,inode_list);
-		}
-
-			
-		else if(strcmp(first,"touch") == 0){
-			if(max_inode>=1023){
-				printf("Maximum number of inodes reached!\n");
-				continue;
-			}
-			touch(curr_dir,second,&max_inode,inode_list);
-		}		
-
-		else{
-			printf("Command does not exit\n");
-}
-
-		
-
-}
-	return 1;
+        if(strcmp(first, "ls") == 0){
+            ls(curr_dir);
+        }
+        else if(strcmp(first, "exit") == 0){
+            break;
+        }
+        else if(strcmp(first, "cd") == 0 || strcmp(first, "mkdir") == 0 || strcmp(first, "touch") == 0){
+            if(count < 2){
+                printf("%s needs a name\n", first);
+                continue;
+            }
+            if(strlen(second) >= NAME_LEN){
+                printf("Name too long (max %d characters)\n", NAME_LEN - 1);
+                continue;
+            }
+            if(strcmp(first, "cd") == 0){
+                curr_dir = cd(curr_dir, second, inode_list);
+            }
+            else if(max_inode >= MAX_INODES - 1){
+                printf("Maximum number of inodes reached!\n");
+            }
+            else if(strcmp(first, "mkdir") == 0){
+                make_dir(curr_dir, second, &max_inode, inode_list);
+            }
+            else{
+                touch(curr_dir, second, &max_inode, inode_list);
+            }
+        }
+        else{
+            printf("Command does not exist\n");
+        }
+    }
+    return 0;
 }
